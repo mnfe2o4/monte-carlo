@@ -1,0 +1,47 @@
+\documentclass[12pt,a4paper]{ctexart}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{xcolor,hyperref}
+\geometry{left=2.5cm,right=2.5cm,top=2.54cm,bottom=2.54cm}
+\ctexset{
+    section = {
+        format = \raggedright\bfseries\Large
+    }
+}
+\definecolor{PrimaryBlue}{RGB}{24,78,140}
+\definecolor{AccentOrange}{RGB}{214,110,45}
+\hypersetup{colorlinks=true,linkcolor=PrimaryBlue,urlcolor=PrimaryBlue,citecolor=PrimaryBlue}
+\setlength{\parindent}{2em}\setlength{\parskip}{0.3em}
+\newtheorem{definition}{定义}[section]
+\newtheorem{theorem}{定理}[section]
+\newtheorem{proposition}{命题}[section]
+\newtheorem{example}{例}[section]
+
+\makeatletter
+\renewcommand{\@maketitle}{%
+    \newpage
+    \null
+    \vskip 2em
+    \begin{center}
+        {\LARGE \@title\par}
+        \vskip 0.8em
+        {\large \@date\par}
+    \end{center}
+    \par\vskip 1.5em
+}
+\makeatother
+
+\title{
+    \textcolor{PrimaryBlue}{蒙特卡洛方差缩减与建议分布设计}\\[0.4em]
+    {\large\normalfont 从稀有事件到非线性目标分布}
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+
+\end{document}
