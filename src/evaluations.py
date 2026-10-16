@@ -1,3 +1,7 @@
+"""
+Calculate empirical error summaries from repeated integral estimates.
+"""
+
 import numpy as np
 
 def rmse(estimates: np.ndarray, true_value: float):

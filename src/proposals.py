@@ -1,3 +1,7 @@
+"""
+Provide normalized proposal densities and their matching sample generators.
+"""
+
 import numpy as np
 from collections.abc import Callable
 

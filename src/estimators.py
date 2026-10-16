@@ -1,3 +1,7 @@
+"""
+Estimate integrals using matching proposal sampling and density evaluation.
+"""
+
 import numpy as np
 from collections.abc import Callable
 from scipy.special import logsumexp
@@ -20,13 +24,20 @@ class MCEstimator:
     Methods:
         estimate(num_samples, func, use_log, rng): Estimate one integral.
         generate_samples(num_samples, rng): Draw samples from the proposal.
-        estimate_rmse(func, num_samples, num_repetitions, true_value, rng,
-            use_log): Compute empirical RMSE across repeated estimates.
+        estimate_rmse(func, num_samples, num_repetitions, true_value,
+            use_log, rng): Compute empirical RMSE across repeated estimates.
     """
 
     def __init__(
             self, proposal: Proposal
     ):
+        """
+        Store a proposal and its matching density evaluation methods.
+
+        Args:
+            proposal: Proposal providing batch sample generation and normalized
+                single-point PDF and log-PDF evaluation.
+        """
         self.proposal = proposal
         self.pdf = proposal.pdf
         self.log_pdf = proposal.log_pdf
@@ -87,7 +98,7 @@ class MCEstimator:
 
     def estimate_rmse(
               self, func: Callable[[np.ndarray], float], num_samples: int, num_repetitions: int, 
-              true_value: float, rng: np.random.Generator | None = None, use_log: bool = False
+              true_value: float, use_log: bool = False, rng: np.random.Generator | None = None
     ) -> float:
         """
         Compute empirical RMSE across fresh repeated estimates at a fixed budget.
@@ -99,18 +110,67 @@ class MCEstimator:
             num_repetitions: Positive number of estimates used for evaluation.
             true_value: Explicit reference integral. Choosing a full-space
                 reference for a bounded proposal includes truncation error.
+            use_log: If True, interpret func as a log-integrand for each call.
             rng: Optional NumPy generator advanced across repetitions. Pass
                 a seeded generator to reproduce the sequence of estimates.
-            use_log: If True, interpret func as a log-integrand for each call.
 
         Returns:
             rmse_value: Square root of the mean squared deviation from
                 true_value. A finite empirical value does not establish that
                 the estimator has finite theoretical variance or RMSE.
         """
+        estimates = self.repeated_estimates(func=func, num_samples=num_samples, num_repetitions=num_repetitions, use_log=use_log, rng=rng)
+        
+        return rmse(estimates, true_value)
+
+    def estimate_bias(
+              self, func: Callable[[np.ndarray], float], num_samples: int, num_repetitions: int, 
+              true_value: float, use_log: bool = False, rng: np.random.Generator | None = None
+    ) -> float:
+        """
+        Compute empirical bias across fresh repeated estimates at a fixed budget.
+
+        Args:
+            func: Callable accepting one point of shape (dim,) and returning
+                the integrand, or its natural logarithm when use_log=True.
+            num_samples: Positive sample count for each estimate.
+            num_repetitions: Positive number of estimates used for evaluation.
+            true_value: Explicit reference integral. Choosing a full-space
+                reference for a bounded proposal includes truncation error.
+            use_log: If True, interpret func as a log-integrand for each call.
+            rng: Optional NumPy generator advanced across repetitions. Pass
+                a seeded generator to reproduce the sequence of estimates.
+
+        Returns:
+            bias_value: Mean deviation from true_value. A finite empirical value
+                does not establish that the estimator has finite theoretical bias.
+        """
+        estimates = self.repeated_estimates(func=func, num_samples=num_samples, num_repetitions=num_repetitions, use_log=use_log, rng=rng)
+        
+        return bias(estimates, true_value)
+
+    def repeated_estimates(
+              self, func: Callable[[np.ndarray], float], num_samples: int, num_repetitions: int, 
+              use_log: bool = False, rng: np.random.Generator | None = None
+    ) -> np.ndarray:
+        """
+        Generate a batch of repeated estimates at a fixed budget.
+
+        Args:
+            func: Callable accepting one point of shape (dim,) and returning
+                the integrand, or its natural logarithm when use_log=True.
+            num_samples: Positive sample count for each estimate.
+            num_repetitions: Positive number of estimates to generate.
+            use_log: If True, interpret func as a log-integrand for each call.
+            rng: Optional NumPy generator advanced across repetitions. Pass
+                a seeded generator to reproduce the sequence of estimates.
+
+        Returns:
+            estimates: Array of repeated estimates with shape (num_repetitions,).
+        """
         estimates = []
         for _ in range(num_repetitions):
             estimate = self.estimate(num_samples=num_samples, func=func, use_log=use_log, rng=rng)
             estimates.append(estimate)
         
-        return rmse(estimates, true_value)
+        return np.array(estimates)
