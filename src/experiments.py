@@ -19,10 +19,10 @@ def run_experiment(
     """
     Sweep sample sizes and optionally save estimates, empirical RMSE and plots.
 
-    For each sample size, one fresh estimate is used for the estimate curve.
-    A separate set of num_repetitions estimates is used to calculate empirical
-    RMSE. The estimate column therefore contains a single estimate, not the
-    mean of those repetitions; total sampling uses (num_repetitions + 1) * N.
+    For each sample size, generate num_repetitions estimates once and save
+    every estimate with its replicate index. Empirical RMSE uses the same
+    repetitions; the optional estimate plot shows their first estimate.
+    Total sampling uses num_repetitions * N for each sample size.
 
     Args:
         estimator: Monte Carlo estimator used for every configuration.
@@ -35,7 +35,7 @@ def run_experiment(
         use_log: If True, interpret func as the log-integrand.
         rng: Optional NumPy generator advanced through the experiment.
             Supply a seeded generator to reproduce the results.
-        csv_path: Optional output directory for the summary CSV.
+        csv_path: Optional output directory for the raw replicate CSV.
         csv_name: CSV filename stem, without the .csv extension.
         figure_path: Optional output directory for the two figures.
         figure_names: Estimate and RMSE figure titles, also used as filename stems.
@@ -47,22 +47,19 @@ def run_experiment(
             is provided.
 
     Returns:
-        None. Summary results are printed or saved according to the options.
+        None. Raw estimates and figures are saved according to the options.
     """
     rmses = dict()
     results = dict()
 
-    # One estimate for the estimate curve, plus separate repetitions for RMSE.
+    # Reuse one batch of repetitions for the raw output and empirical RMSE.
     for num_samples in sample_sizes:
-        results[num_samples] = estimator.estimate(
-            num_samples, func, use_log, rng
-        )
-        rmses[num_samples] = estimator.estimate_rmse(
-            func, num_samples, num_repetitions, true_value, use_log, rng
-        )
+        result = estimator.repeated_estimates(func, num_samples, num_repetitions, use_log, quiet, rng)
+        rmses[num_samples] = rmse(result, true_value)
+        results[num_samples] = result
 
         if not quiet:
-            print(f"Sample Size={num_samples}, Estimate={results[num_samples]}, RMSE={rmses[num_samples]}")
+            print(f"Sample Size={num_samples}, Average Estimate={result.mean()}, RMSE={rmses[num_samples]}")
 
     if csv_path:
         csv_path = Path(csv_path)
@@ -70,9 +67,11 @@ def run_experiment(
 
         with csv_path.joinpath(f"{csv_name}.csv").open("w", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(["Sample Size", "Estimate", "RMSE"])
+            writer.writerow(["Sample Size", "Replicate", "Estimate"])
             for num_samples in sample_sizes:
-                writer.writerow([num_samples, results[num_samples], rmses[num_samples]])
+                result = results[num_samples]
+                for replicate, estimate in enumerate(result):
+                    writer.writerow([num_samples, replicate + 1, estimate])
 
         if not quiet:
             print(f"Results saved to {csv_path.joinpath(f'{csv_name}.csv')}")
@@ -82,7 +81,7 @@ def run_experiment(
         figure_path.mkdir(parents=True, exist_ok=True)
 
         plot_estimates(
-            sample_sizes, np.array([results[num_samples] for num_samples in sample_sizes]),
+            sample_sizes, np.array([results[num_samples][0] for num_samples in sample_sizes]),
             title=figure_titles[0] if figure_titles else figure_names[0], output_path=figure_path.joinpath(f"{figure_names[0]}.png"),
             true_value=true_value if show_true_value else None
         )

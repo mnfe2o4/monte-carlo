@@ -3,6 +3,7 @@ Estimate integrals using matching proposal sampling and density evaluation.
 """
 
 import numpy as np
+from tqdm import tqdm
 from collections.abc import Callable
 from scipy.special import logsumexp
 from .evaluations import rmse, bias
@@ -98,7 +99,7 @@ class MCEstimator:
 
     def estimate_rmse(
               self, func: Callable[[np.ndarray], float], num_samples: int, num_repetitions: int, 
-              true_value: float, use_log: bool = False, rng: np.random.Generator | None = None
+              true_value: float, use_log: bool = False, quiet: bool = True, rng: np.random.Generator | None = None
     ) -> float:
         """
         Compute empirical RMSE across fresh repeated estimates at a fixed budget.
@@ -111,6 +112,7 @@ class MCEstimator:
             true_value: Explicit reference integral. Choosing a full-space
                 reference for a bounded proposal includes truncation error.
             use_log: If True, interpret func as a log-integrand for each call.
+            quiet: If True, suppress the tqdm progress bar.
             rng: Optional NumPy generator advanced across repetitions. Pass
                 a seeded generator to reproduce the sequence of estimates.
 
@@ -119,13 +121,13 @@ class MCEstimator:
                 true_value. A finite empirical value does not establish that
                 the estimator has finite theoretical variance or RMSE.
         """
-        estimates = self.repeated_estimates(func=func, num_samples=num_samples, num_repetitions=num_repetitions, use_log=use_log, rng=rng)
+        estimates = self.repeated_estimates(func=func, num_samples=num_samples, num_repetitions=num_repetitions, use_log=use_log, quiet=quiet, rng=rng)
         
         return rmse(estimates, true_value)
 
     def estimate_bias(
               self, func: Callable[[np.ndarray], float], num_samples: int, num_repetitions: int, 
-              true_value: float, use_log: bool = False, rng: np.random.Generator | None = None
+              true_value: float, use_log: bool = False, quiet: bool = True, rng: np.random.Generator | None = None
     ) -> float:
         """
         Compute empirical bias across fresh repeated estimates at a fixed budget.
@@ -138,6 +140,7 @@ class MCEstimator:
             true_value: Explicit reference integral. Choosing a full-space
                 reference for a bounded proposal includes truncation error.
             use_log: If True, interpret func as a log-integrand for each call.
+            quiet: If True, suppress the tqdm progress bar.
             rng: Optional NumPy generator advanced across repetitions. Pass
                 a seeded generator to reproduce the sequence of estimates.
 
@@ -145,13 +148,13 @@ class MCEstimator:
             bias_value: Mean deviation from true_value. A finite empirical value
                 does not establish that the estimator has finite theoretical bias.
         """
-        estimates = self.repeated_estimates(func=func, num_samples=num_samples, num_repetitions=num_repetitions, use_log=use_log, rng=rng)
+        estimates = self.repeated_estimates(func=func, num_samples=num_samples, num_repetitions=num_repetitions, use_log=use_log, quiet=quiet, rng=rng)
         
         return bias(estimates, true_value)
 
     def repeated_estimates(
               self, func: Callable[[np.ndarray], float], num_samples: int, num_repetitions: int, 
-              use_log: bool = False, rng: np.random.Generator | None = None
+              use_log: bool = False, quiet: bool = True, rng: np.random.Generator | None = None
     ) -> np.ndarray:
         """
         Generate a batch of repeated estimates at a fixed budget.
@@ -162,6 +165,7 @@ class MCEstimator:
             num_samples: Positive sample count for each estimate.
             num_repetitions: Positive number of estimates to generate.
             use_log: If True, interpret func as a log-integrand for each call.
+            quiet: If True, suppress the tqdm progress bar.
             rng: Optional NumPy generator advanced across repetitions. Pass
                 a seeded generator to reproduce the sequence of estimates.
 
@@ -169,7 +173,7 @@ class MCEstimator:
             estimates: Array of repeated estimates with shape (num_repetitions,).
         """
         estimates = []
-        for _ in range(num_repetitions):
+        for _ in tqdm(range(num_repetitions), disable=quiet, desc=f"Estimating with {num_samples} samples"):
             estimate = self.estimate(num_samples=num_samples, func=func, use_log=use_log, rng=rng)
             estimates.append(estimate)
         

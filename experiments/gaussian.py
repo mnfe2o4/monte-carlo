@@ -15,7 +15,7 @@ if __name__ == "__main__":
     rng = np.random.default_rng(20260930)
     # Resolve outputs relative to this file, independently of the working directory.
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
-    csv_path=PROJECT_ROOT / "results"
+    csv_path=PROJECT_ROOT / "results" / "raw"
     figure_path=PROJECT_ROOT / "figures"
     # Compare against the full-space truth, including the box truncation error.
     run_experiment(
