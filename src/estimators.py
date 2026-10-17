@@ -66,8 +66,6 @@ class MCEstimator:
                 proposal support, provided the weighted integrand is integrable.
         """
         samples = self.generate_samples(num_samples, rng)
-        if rng is None:
-                rng = np.random.default_rng()
         
         if use_log:
             log_proposal_pdf = np.array([self.log_pdf(sample) for sample in samples])

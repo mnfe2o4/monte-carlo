@@ -10,7 +10,7 @@ from src.experiments import run_experiment
 from pathlib import Path
 
 if __name__ == "__main__":
-    estimator = MCEstimator(GaussianProposal(np.array([0.0, 0.0]), np.array([[0.99914662, 0.0], [0.0, 4.61945853]])))
+    estimator = MCEstimator(GaussianProposal(np.array([0.0, 0.0]), np.array([[2.46006384, 0.0], [0.0, 1.40547353]])))
     # A fixed generator makes the sequence of estimates reproducible.
     rng = np.random.default_rng(20260930)
     # Resolve outputs relative to this file, independently of the working directory.

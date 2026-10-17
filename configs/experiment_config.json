@@ -1,0 +1,35 @@
+{    
+    "experiment": {
+        "description": "Configuration for the Monte Carlo experiment",
+        "sample_sizes": [100, 300, 1000, 3000, 10000, 30000, 100000],
+        "num_repetitions": 100,
+        "optimization_seed": 20261008,
+        "evaluation_seed": 20260930,
+        "optimization_initial_gaussian_params": [0.0, 1.0, 0.75],
+        "optimization_bounds": [
+            [0.0, 5.0],
+            [0.1, 10.0],
+            [0.1, 10.0]
+        ],
+        "refined_gaussian_params": [0.0, 2.46006384, 1.40547353],
+        "moment_matched_gaussian_params": [0.0, 1.0, 0.75]
+    },
+    "paths": {
+        "raw_data": "results/raw/",
+        "summary_data": "results/summary/",
+        "figures": "figures/",
+        "notebooks": "notebooks/",
+        "reports": "reports/",
+        "configs": "configs/"
+    },
+    "python_environment": {
+        "python_version": "3.12.4",
+        "dependencies": {
+            "numpy": "2.5.4",
+            "scipy": "1.18.1",
+            "matplotlib": "3.11.2",
+            "pandas": "3.0.6",
+            "tqdm": "4.70.1"
+        }
+    }
+}

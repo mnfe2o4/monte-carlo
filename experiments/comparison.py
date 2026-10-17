@@ -41,7 +41,6 @@ def plot_comparison(
         "uniform_truncated_4": r"Uniform MC ($[-4, 4]^2$)",
         "gaussian": "Initial Gaussian IS",
         "refined_gaussian": "Refined Gaussian IS",
-        # The current experiment matches the covariance, with mean (0, 0.5).
         "moment_matched_gaussian": "Moment-matched Gaussian IS",
     }
     missing = set(experiments) - set(summary["method"])

@@ -40,19 +40,21 @@ $$
 |---|---|---|
 | Uniform MC | $U([-4,4]^2)$ | `uniform_truncated_4.csv` |
 | Initial Gaussian IS | $N((0,0.5),\operatorname{diag}(1,0.25))$ | `gaussian.csv` |
-| Refined Gaussian IS | $N((0,0),\operatorname{diag}(0.99914662,4.61945853))$ | `refined_gaussian.csv` |
-| Covariance-matched Gaussian IS | $N((0,0),\operatorname{diag}(1,0.75))$ | `moment_matched_gaussian.csv` |
+| Refined Gaussian IS | $N((0,0),\operatorname{diag}(2.46006384, 1.40547353))$ | `refined_gaussian.csv` |
+| Moment-matched Gaussian IS | $N((0,0),\operatorname{diag}(1,0.75))$ | `moment_matched_gaussian.csv` |
 
 现有数据使用 $N\in\{100,300,1000,3000,10000,30000,100000\}$，每个 N 重复 100 次。以下为从当前 raw 重新汇总得到的经验 RMSE，均以完整真值 $\pi$ 为参照：
 
-| N | Uniform MC | Initial Gaussian IS | Refined Gaussian IS | Covariance-matched Gaussian IS |
+| N | Uniform MC | Initial Gaussian IS | Refined Gaussian IS | Moment-matched Gaussian IS |
 |---:|---:|---:|---:|---:|
-| 10,000 | 0.095375 | 0.907684 | 0.050151 | 0.122221 |
-| 100,000 | 0.030459 | 1.258050 | 0.018861 | 0.103629 |
+| 10,000 | 0.095375 | 0.907684 | 0.039548 | 0.104686 |
+| 100,000 | 0.030459 | 1.258050 | 0.015139 | 0.061507 |
 
 示例规模下，Refined Gaussian 的经验 RMSE 最低；匹配协方差的 Gaussian 仍有明显误差和波动。图中的幂律拟合仅描述这批结果，不用于证明理论收敛阶。
 
-实验入口和调参目前都使用 seed `20260930`，尚未采用明确分离的调参与评价随机流；这些结果仍属于初步实验。
+### 种子设定
+
+Gaussian IS 的调参和四方法比较使用不同随机流，避免调参结果对比较图产生偏倚。调参过程使用 `seed=20261008`，四方法比较使用 `seed=20260930`。调参完成后，固定 Refined Gaussian 的参数。各方法分别初始化生成器，并连续生成重复估计所需的样本。
 
 ### 精确采样对照
 
@@ -94,7 +96,7 @@ $$
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install numpy scipy matplotlib pandas tqdm
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 依赖安装未锁定版本；尚未验证干净环境的完整复现。
@@ -146,8 +148,9 @@ Gaussian 调参是独立入口，汇总已有结果不需要重跑它：
 | `figures/` | 单方法图与四方法比较图 |
 | `notebooks/` | 基础模拟与方差缩减的学习实验 |
 | `reports/` | 新报告的 LaTeX 草稿，目前尚无分析正文 |
+| `configs/` | 存储完整参数、seed、包版本等相关配置信息 |
 
-raw 是统计来源，summary 和 comparison 都能从 raw 重建。当前 raw 尚未记录完整参数、seed、代码版本或计算时间，相关配置仍需对照实验入口查看。
+raw 是统计来源，summary 和 comparison 都能从 raw 重建。完整参数、seed、包版本等相关配置信息存储在 `configs/` 中。
 
 ## 结论边界与下一步
 
@@ -155,7 +158,6 @@ raw 是统计来源，summary 和 comparison 都能从 raw 重建。当前 raw �
 - Uniform 对完整积分的理论 RMSE 包含截断偏差；增大 N 不能消除约 `0.009884` 的误差下限。
 - 匹配均值或协方差不能充分描述弯曲的目标分布。
 - 当前结果尚不足以宣称某种方法在所有预算和随机种子下都更优，也未比较计算时间。
-- 下一步记录完整配置，使用独立于调参的随机流评价固定方案，并结合误差分位数、最大误差和 log-weight 诊断补充报告分析。
 
 ## License
 
