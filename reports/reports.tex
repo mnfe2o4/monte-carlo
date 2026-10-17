@@ -11,8 +11,24 @@
         format = \raggedright\bfseries\Large
     }
 }
+\graphicspath{{../figures/}}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.3em}
+\raggedbottom
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.75}
+\setlist{itemsep=0.25em,topsep=0.4em}
+\captionsetup{font=small,labelfont=bf}
+\counterwithin{figure}{section}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Cov}{Cov}
+\DeclareMathOperator{\Bias}{Bias}
+\newcommand{\rhoT}{\widetilde{\rho}}
 \definecolor{PrimaryBlue}{RGB}{24,78,140}
-\definecolor{AccentOrange}{RGB}{214,110,45}
 \hypersetup{colorlinks=true,linkcolor=PrimaryBlue,urlcolor=PrimaryBlue,citecolor=PrimaryBlue}
 \setlength{\parindent}{2em}\setlength{\parskip}{0.3em}
 \newtheorem{definition}{定义}[section]
@@ -35,13 +51,629 @@
 \makeatother
 
 \title{
-    \textcolor{PrimaryBlue}{蒙特卡洛方差缩减与建议分布设计}\\[0.4em]
-    {\large\normalfont 从稀有事件到非线性目标分布}
+    \textcolor{PrimaryBlue}{Monte Carlo 方差缩减与建议分布设计}\\[0.4em]
+    {\large\normalfont 二维非线性目标的归一化常数估计}
 }
 \date{\today}
 
 \begin{document}
 \maketitle
 
+\section{引言}
+
+本报告研究归一化常数的数值估计问题：
+\[
+Z=\int_{\R^2}\rhoT(x)\,\mathrm{d}x,
+\]
+其中，未归一化密度 $\rhoT:\R^2\to(0,+\infty)$ 定义为
+\[
+\rhoT(x)=\exp\left(-\frac{x_1^2}{2}
+  -\frac12\left(2x_2+x_1^2-1\right)^2\right).
+\]
+量 $Z$ 是概率密度 $\rho(x)=Z^{-1}\rhoT(x)$ 的归一化常数。
+
+本报告实现并比较两种估计 $Z$ 的 Monte Carlo 方法：采用均匀采样的 Monte Carlo 积分，
+以及重要性采样。我们从估计精度和误差变化两个方面分析各方法的表现。
+
+我们的目标是研究估计误差如何随样本量 $N$ 的增加而变化，
+评价建议分布对重要性采样的影响，并讨论截断偏差、有限样本表现和权重尾部性质。
+
+\section{被积函数的性态分析}
+
+\subsection{被积函数的几何特征}\label{sec:function-feature}
+
+注意到 $\rhoT$ 可以分解为两个部分：
+\[
+\rhoT(x) = \rho_1(x) \cdot \rho_2(x),
+\]
+其中
+\[
+\rho_1(x) = \exp\left(-\frac{x_1^2}{2}\right), \quad \rho_2(x) = \exp\left(-\frac12\left(2x_2+x_1^2-1\right)^2\right).
+\]
+
+固定 $x_1$，函数 $\rho_2$ 关于 $x_2$ 是一个高斯分布的未归一化密度，均值为 $-\frac12(x_1^2-1)$，方差为 $\frac14$。
+因而，$\rhoT$ 的等高线在 $(x_1,x_2)$ 平面上呈现出一条曲线状的主脊线，沿着 $x_2 = -\frac12(x_1^2-1)$ 方向延伸。
+
+另一方面，$\rho_1$ 是一个标准高斯分布的未归一化密度，关于 $x_1$ 对称且在 $x_1=0$ 处达到最大值。
+故 $\rhoT$ 的整体形状呈现出一个关于 $x_2$ 轴对称的曲线状分布，主脊线在 $x_1=0$ 附近达到最高点，并随着 $|x_1|$ 的增大而逐渐下降。
+最大值出现在 $x_1=0$，此时 $x_2=-\frac12(-1)=\frac12$，即 $(0, \frac12)$。
+
+在 $[-4,4]^2$ 上绘制 $\rhoT$ 的热力图和三维曲面图\ref{fig:target}，可以看到函数确实呈现出之前分析的形态，这也启发了我们在重要性采样中选择建议分布的策略。
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{target_heatmap.png}
+    \caption{$\rhoT(x)$ 的热力图}\label{fig:target-heatmap}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{target_surface.png}
+    \caption{$\rhoT(x)$ 的三维曲面图}\label{fig:target-surface}
+  \end{subfigure}
+  \caption{被积函数 $\rhoT(x)$ 的可视化}
+  \label{fig:target}
+\end{figure}
+
+\subsection{积分的精确值}
+
+通过 $\rhoT$ 的分解，我们可以通过换元求得 $Z$ 的精确值。令
+\[
+y_1 = x_1, \quad y_2 = 2x_2 + x_1^2 - 1.
+\]
+反解得到
+\[
+x_1 = y_1, \quad x_2=\frac{y_2 - y_1^2 +1}{2}.
+\]
+则有 Jacobian 行列式为
+\[
+\frac{\partial(x_1, x_2)}{\partial(y_1, y_2)} = \begin{vmatrix}
+\dfrac{\partial x_1}{\partial y_1} & \dfrac{\partial x_1}{\partial y_2} \\[1em]
+\dfrac{\partial x_2}{\partial y_1} & \dfrac{\partial x_2}{\partial y_2}
+\end{vmatrix} = \begin{vmatrix}
+1 & 0 \\[1em]
+-y_1 & \dfrac{1}{2}
+\end{vmatrix} = \frac{1}{2}.
+\]
+则积分值
+\[
+Z = \int_{\R^2} \rhoT(x) \, dx = \int_{\R^2} \exp\left(-\frac{y_1^2}{2}\right) \exp\left(-\frac{y_2^2}{2}\right) \cdot \frac{1}{2} \, dy_1 dy_2 = \frac{1}{2} \cdot (2\pi) = \pi.
+\]
+因此，在后续误差分析中，我们将采用 $\pi$ 作为归一化常数的真实值。
+
+\subsection{目标分布的矩}
+
+通过上述换元，我们也可以求得目标函数的矩。
+设 $X=(X_1,X_2) \sim \rho=\rhoT/Z$，令
+\[
+Y_1 = X_1, \quad Y_2 = 2X_2 + X_1^2 - 1,
+\]
+则 $(Y_1, Y_2)$ 的密度函数为
+\[
+p_{Y_1,Y_2}(y_1,y_2) = \frac{1}{Z} \exp\left(-\frac{y_1^2}{2}\right) \exp\left(-\frac{y_2^2}{2}\right) \left|\frac{\partial(x_1, x_2)}{\partial(y_1, y_2)}\right| = \frac{1}{2\pi} \exp\left(-\frac{y_1^2+y_2^2}{2}\right),
+\]
+即 $(Y_1, Y_2)$ 服从标准二维正态分布。
+因此我们可以求得 $X_1, X_2$ 的矩：
+\begin{align*}
+    \E[X_1] &= \E[Y_1] = 0, \\
+    \E[X_2] &= \frac{1}{2}(\E[Y_2] - \E[Y_1^2] + 1) = \frac{1}{2}(0 - 1 + 1) = 0, \\
+    \Var(X_1) &= \Var(Y_1) = 1, \\
+    \Var(X_2) &= \frac{1}{4}(\Var(Y_2) + \Var(Y_1^2)) = \frac{1}{4}(1 + 2) = \frac{3}{4}, \\
+    \Cov(X_1, X_2) &= \frac12\Cov(Y_1, Y_2) - \frac12\Cov(Y_1, Y_1^2) = 0 - 0 = 0.
+\end{align*}
+
+\section{均匀采样下的 Monte Carlo 积分}
+
+\subsection{均匀采样的区域限制}
+
+由于均匀采样要求有限区域，因此我们将积分区域限制在有限的正方形内。
+我们考虑 $[-4,4]^2$ 和 $[-6,6]^2$ 两个区域，通过数值计算可以得到限制区域内的积分值为
+\[
+\int_{[-4,4]^2} \rhoT(x) \, dx \approx 3.131708, \quad \int_{[-6,6]^2} \rhoT(x) \, dx \approx 3.140462.
+\]
+相应与真值的偏差分别为
+\[
+b_{[-4,4]^2} \approx -0.00988424, \quad b_{[-6,6]^2} \approx -0.00113041.
+\]
+两种区域下的绝对偏差分别约为 $9.88\times10^{-3}$ 和 $1.13\times10^{-3}$。
+在较小样本量下，采样波动较大，偏差项的影响相对较小；当样本量增大时，偏差项会限制估计精度。
+接下来我们也将详细讨论偏差对均匀采样估计的影响。
+
+\subsection{方法与实现}
+
+\subsubsection{Monte Carlo 方法的误差}
+
+设 $Z = \int_{\Omega} f(x)p(x) \, dx$ ，则有 Monte Carlo 积分估计量
+\[
+\widehat{Z}_N = \frac{1}{N} \sum_{i=1}^{N} f(X_i), \quad X_i \overset{\text{i.i.d.}}{\sim} p, \quad i=1,2,\ldots,N.
+\]
+其中 $p$ 是采样密度。假设 $\E_p[|f(X)|]<\infty$，由强大数定律有
+\[
+\widehat{Z}_N \xrightarrow{\text{a.s.}} Z, \quad N \to \infty.
+\]
+因此，$\widehat{Z}_N$ 是 $Z$ 的强相合估计量。
+
+定义估计量的误差为
+\[
+e_N=\widehat{Z}_N-Z.
+\]
+均方误差（MSE）和均方根误差（RMSE）为
+\[
+\operatorname{MSE}=\E[e_N^2], \quad \operatorname{RMSE}=\sqrt{\E[e_N^2]}.
+\]
+计算可得
+\[
+\operatorname{MSE}=\E[e_N^2]=\Var(\widehat{Z}_N)+(\E[\widehat{Z}_N]-Z)^2=\Var(\widehat{Z}_N)+\Bias(\widehat{Z}_N)^2,
+\]
+其中 $\Var(\widehat{Z}_N)$ 是估计量的方差，$\Bias(\widehat{Z}_N)$ 是估计量的偏差。
+
+进一步，设单个样本的方差为 $\sigma^2=\Var(f(X))<\infty$，则有
+\[
+\Var(\widehat{Z}_N) = \frac{1}{N} \sigma^2.
+\]
+因此，均方误差可以表示为
+\[
+\operatorname{MSE} = \frac{\sigma^2}{N} + \Bias(\widehat{Z}_N)^2.
+\]
+若估计量是无偏的，即 $\Bias(\widehat{Z}_N) = 0$，则有
+\[
+\operatorname{MSE} = \frac{\sigma^2}{N}, \quad \operatorname{RMSE} = \frac{\sigma}{\sqrt{N}}.
+\]
+
+对于均匀采样的 Monte Carlo 积分，设积分区域为 $\Omega$，则有
+\[
+\widehat Z_N^{\mathrm{Unif}} = \frac{\mu(\Omega)}{N} \sum_{i=1}^{N} \rhoT(X_i), \quad X_i \overset{\text{i.i.d.}}{\sim} \mathcal U(\Omega),
+\]
+相应的 RMSE 为
+\[
+\operatorname{RMSE} = \sqrt{\Var_{\mathcal U(\Omega)}(\widehat Z_N^{\mathrm{Unif}}) + b_{\Omega}^2},
+\]
+其中 $b_{\Omega} = \int_{\Omega} \rhoT(x) \, dx - Z$ 是由于区域限制引入的偏差。
+
+\subsubsection{算法}
+
+均匀采样下的 Monte Carlo 积分算法如下：
+\begin{enumerate}
+  \item 定义积分区域 $\Omega=[-4,4]^2$，计算其测度 $\mu(\Omega)=64$。
+  \item 给定样本量 $N$，从 $\mathcal U(\Omega)$ 生成 $N$ 个独立同分布样本
+    $X_1,X_2,\ldots,X_N$。
+  \item 计算 Monte Carlo 估计量
+    \[\widehat Z_N^{\mathrm{Unif}}=\frac{\mu(\Omega)}{N}\sum_{i=1}^N\rhoT(X_i).\]
+  \item 返回估计值 $\widehat Z_N^{\mathrm{Unif}}$。
+  \item 对每个 $N$ 多次重复估计，计算经验 RMSE。
+    本报告使用解析真值 $Z=\pi$ 计算误差。
+  \item 对不同的 $N$ 重复上述步骤，分析收敛行为。
+  \item 改变积分区域为 $\Omega=[-6,6]^2$，重复上述步骤，比较不同区域下的估计表现。
+\end{enumerate}
+
+\subsection{数值实验}
+
+我们通过数值实验评价均匀采样 Monte Carlo 积分的表现。
+
+\subsubsection{实验设置}\label{sec:uniform-setup}
+
+样本量取 $N\in\{100,300,1000,3000,10000,30000,100000\}$，对每个 $N$ 计算估计量 $\widehat Z_N^{\mathrm{Unif}}$，对每个样本量重复估计 $R=100$ 次，以计算经验 RMSE。
+使用 NumPy 的均匀随机数生成器产生独立同分布样本 $X_i\sim U(\Omega)$。
+
+程序保存每轮重复估计，并从同一批结果计算各项统计量。记第 $r$ 次重复的估计值为 $\widehat Z_{N,r}$，则经验 RMSE 为
+\[
+\widehat{\operatorname{RMSE}}_N
+=\sqrt{\frac1R\sum_{r=1}^R(\widehat Z_{N,r}-\pi)^2}.
+\]
+同时保存重复估计的均值、与 $\pi$ 的经验偏差、样本方差，以及绝对误差的中位数、95\% 分位数和最大值。
+其中样本方差的分母为 $R-1$。以下数值实验图中的 RMSE 均指经验 RMSE。
+
+单方法的估计值图展示每个 $N$ 的第一轮重复估计，比较图则展示 $R$ 次重复估计的均值；两类图的 RMSE 都使用全部重复估计计算。
+各个 $N$ 都重新生成样本。正式实验使用随机种子 $20260930$，并在同一实验脚本中连续使用生成器。
+
+\subsubsection{实验结果}
+
+图\ref{fig:uniform-convergence}展示了均匀 Monte Carlo 估计量 $\widehat Z_N^{\mathrm{Unif}}$
+随样本量增大时的收敛情况。曲线有以下主要特征：
+\begin{itemize}
+  \item $N$ 较小时，误差很大。
+  \item 估计值逐渐稳定在 $Z=\pi$ 附近。
+  \item 随着 $N$ 增大，视觉上呈现收敛趋势。
+\end{itemize}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\linewidth]{uniform_truncated_6_estimates.png}
+  \caption{$[-6,6]^2$ 上均匀 Monte Carlo 第一轮重复估计随样本量的变化}
+  \label{fig:uniform-convergence}
+\end{figure}
+
+图\ref{fig:uniform-comparison}展示了两种限制区域下均匀 Monte Carlo 估计量的收敛情况和双对数坐标下 RMSE
+随样本量 $N$ 的变化。可以看到随着 N 的增加，RMSE 逐渐减小，且在双对数坐标下呈现出近似线性下降的趋势，拟合斜率均在 -0.5 附近。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{uniform_comparison.png}
+  \caption{两种限制区域下均匀 Monte Carlo 估计量比较}
+  \label{fig:uniform-comparison}
+\end{figure}
+
+\subsubsection{讨论}
+
+从实验结果可以看出，均匀 Monte Carlo 方法在积分估计中具有良好的收敛性。随着样本量的增加，估计误差逐渐减小，符合理论预期。
+
+值得注意的是，随着积分区域的扩大，估计量的偏差减小，但 $[-6,6]^2$ 区域下的 RMSE 反而更大。
+另一方面，理论的 RMSE 计算中包含了偏差项 $b_{\Omega}$，而在实验中仍然有拟合斜率接近 -0.5 的趋势。
+这两点都说明，在目前的样本量下，仍然是由估计量本身的方差主导了 RMSE 的变化，而偏差项的影响相对较小。
+因此，我们需要进行更大样本量的补充实验。
+
+\subsubsection{补充实验}
+
+为了更好地显示大样本情况下 RMSE 的收敛趋势，我们将样本量扩展到 $N=10^7$，并对每个样本量重复估计 $20$ 次以计算经验 RMSE。
+
+图\ref{fig:uniform-comparison-largesamples}展示了两种限制区域下均匀 Monte Carlo 估计量的收敛情况和双对数坐标下 RMSE
+随样本量 $N$ 的变化。图\ref{fig:uniform-comparison-largesamples-rmse}则展示了大小样本下均匀 Monte Carlo 估计量的 RMSE 比较。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{uniform_comparison_largesamples.png}
+  \caption{大样本情况下两种限制区域的均匀 Monte Carlo 估计量比较}
+  \label{fig:uniform-comparison-largesamples}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{uniform_rmse_comparison.png}
+  \caption{两种限制区域下大小样本的均匀 Monte Carlo 估计量 RMSE 比较}
+  \label{fig:uniform-comparison-largesamples-rmse}
+\end{figure}
+
+大样本下两种限制区域下的 RMSE 曲线产生了交点，此时 $[-4,4]^2$ 区域下的 RMSE 不断逼近绝对偏差下界 $|b_{[-4,4]^2}|$。
+相比之下，$[-6,6]^2$ 区域下的 RMSE 仍然呈现出近似线性下降的趋势，说明在该区域下，估计量的方差仍然是主导因素。
+两种区域下的收敛曲线也表明，大样本下估计量已经逐渐趋近于各自的理论极限。
+
+从图\ref{fig:uniform-comparison-largesamples-rmse}可以更明显看出，$[-4,4]^2$ 区域下的 RMSE 曲线在 $N=10^6$ 附近开始趋于平稳，说明偏差项已经成为主导因素。
+而 $[-6,6]^2$ 区域下的 RMSE 曲线仍然呈现出近似线性下降的趋势，说明在该区域下，估计量的方差仍然是主导因素。
+
+\section{重要性采样下的 Monte Carlo 积分}
+
+本节将使用重要性采样方法对归一化常数 $Z$ 进行估计。我们将设计一个建议分布 $q(x)$，使得在该分布下采样的样本能够更有效地覆盖被积函数 $\rhoT(x)$ 的主要贡献区域，从而改善有限样本下的估计表现。
+
+\subsection{方法与实现}
+
+重要性采样通过引入一个辅助分布 $q(x)$ 来改进传统的 Monte Carlo 估计。具体来说，我们希望选择一个分布 $q(x)$，使得它在被积函数 $\rhoT(x)$ 的主要贡献区域有较高的密度，从而减少估计的方差。
+
+假设在 $\rhoT(x)>0$ 的地方都有 $q(x)>0$，允许忽略零测集。$Z$ 的重要性采样估计量为
+\[
+\widehat Z_N^{\mathrm{IS}}=\frac1N\sum_{i=1}^N\frac{\rhoT(Y_i)}{q(Y_i)},
+\qquad Y_i\sim q,
+\]
+其中，$Y_i$ 是密度为 $q(x)$ 的独立同分布样本，$N$ 为总样本量。
+由强大数定律，
+\[
+\widehat Z_N^{\mathrm{IS}}\xrightarrow{\text{a.s.}}
+  \E_q\left[\frac{\rhoT(Y_i)}{q(Y_i)}\right],\qquad N\to\infty.
+\]
+这里
+\[
+\E_q\left[\frac{\rhoT(Y_i)}{q(Y_i)}\right]
+=\int_{\R^2}\frac{\rhoT(y)}{q(y)}q(y)\,\mathrm{d}y
+=\int_{\R^2}\rhoT(y)\,\mathrm{d}y=Z.
+\]
+因此，重要性采样估计量是无偏且强相合的。
+
+此时，估计量的方差为
+\[
+\Var_q(\widehat Z_N^{\mathrm{IS}})=\frac1N\Var_q\left(\frac{\rhoT(Y_i)}{q(Y_i)}\right)
+\]
+因此，为减小 RMSE，我们希望选择一个建议分布 $q(x)$，使得 $\frac{\rhoT(x)}{q(x)}$ 的方差尽可能小。
+此时建议分布的选择应当满足以下两个条件：
+\begin{enumerate}
+    \item 建议分布 $q(x)$ 应当尽可能接近被积函数 $\rhoT(x)$ 的形状，以减小 $\frac{\rhoT(x)}{q(x)}$ 的方差。
+    \item 建议分布 $q(x)$ 的尾部应足以保证权重的二阶矩有限，才能使用通常的有限方差和 RMSE 收敛分析。
+\end{enumerate}
+
+另一方面，若存在 $q(x)=0$ 而 $\rhoT(x)>0$ 的正测度区域，则该区域的积分贡献会被遗漏，导致估计量的偏差。
+本题中 $\rhoT(x)$ 在 $\R^2$ 上处处为正，因此全空间积分要求建议密度几乎处处为正。有限区域上的均匀采样只能估计相应的截断积分。
+
+\subsubsection{算法}
+
+类似地，重要性采样算法如下：
+\begin{enumerate}
+  \item 定义建议分布 $q(x)=\mathcal{N}(m,\Sigma)$，其均值为 $m$，协方差为 $\Sigma$。
+  \item 给定样本量 $N$，从 $q$ 中生成 $N$ 个独立同分布样本 $Y_1,Y_2,\ldots,Y_N$。
+  \item 计算重要性采样估计量
+    \[\widehat Z_N^{\mathrm{IS}}=\frac1N\sum_{i=1}^N\frac{\rhoT(Y_i)}{q(Y_i)}.\]
+  \item 返回估计值 $\widehat Z_N^{\mathrm{IS}}$。
+  \item 对每个 $N$ 多次重复估计，计算经验 RMSE。
+  \item 对不同的 $N$ 重复上述步骤，分析收敛行为。
+\end{enumerate}
+
+在高斯建议分布的实际计算中，我们使用对数权重
+\[
+\ell_i=\log\rhoT(Y_i)-\log q(Y_i),\qquad
+\widehat Z_N^{\mathrm{IS}}
+=\exp\left(\operatorname{logsumexp}(\ell_1,\ldots,\ell_N)-\log N\right).
+\]
+这与直接计算权重均值在数学上等价，可以减少密度很小时的数值下溢问题，但不会改变权重的理论方差。
+
+\subsection{选择建议分布}
+
+在\ref{sec:function-feature}节中，我们分析了被积函数 $\rhoT(x)$ 的几何特征。
+函数的密度最大值出现在点 $(0, \frac12)$，并且沿着曲线 $x_2 = -\frac12(x_1^2-1)$ 具有较高的密度。
+因此，我们选择一个二维高斯分布 $\mathcal N(m, \Sigma)$ 作为建议分布 $q(x)$，其均值为 $m=(0, \frac12)$。
+
+下一步确定协方差矩阵 $\Sigma$。为使建议分布更好地表现出原始函数的特征，我们考虑最大值点处对数密度的 Hessian 矩阵：
+\[
+\nabla^2 \log\rhoT = \begin{pmatrix}
+\frac{\partial^2 \log\rhoT}{\partial x_1^2} & \frac{\partial^2 \log\rhoT}{\partial x_1 \partial x_2} \\
+\frac{\partial^2 \log\rhoT}{\partial x_2 \partial x_1} & \frac{\partial^2 \log\rhoT}{\partial x_2^2}
+\end{pmatrix}\Bigg|_{(0, \frac12)}.
+\]
+计算可得
+\[
+\nabla^2 \log\rhoT(0, \frac12) = \begin{pmatrix}
+-1 & 0 \\
+0 & -4
+\end{pmatrix}.
+\]
+而二元正态分布的协方差矩阵与其对数密度的关系为 $\nabla^2\log q(m)=-\Sigma^{-1}$。
+故局部高斯近似取
+\[
+\Sigma = -\left[\nabla^2\log\rhoT(0,\tfrac12)\right]^{-1}
+= \begin{pmatrix}1 & 0 \\ 0 & \frac14\end{pmatrix}.
+\]
+
+\subsection{数值实验}\label{sec:initial-experiments}
+
+我们通过数值实验评价重要性采样方法的表现。
+
+\subsubsection{实验设置}
+
+采用与第\ref{sec:uniform-setup}节相同的实验设置。
+样本量 $N$ 从 $10^2$ 变化到 $10^5$，对每个 $N$ 计算估计量
+$\widehat Z_N^{\mathrm{IS}}$。对每个样本量重复估计 $100$ 次，
+以计算经验 RMSE。使用 NumPy 的多元正态随机数生成器产生独立同分布样本 $Y_i\sim q$。
+
+\subsubsection{实验结果}
+
+图\ref{fig:initial-convergence}展示了采用初始建议分布时，
+重要性采样估计量 $\widehat Z_N^{\mathrm{IS}}$ 随样本量的变化。
+与均匀采样不同，该估计量仍然十分不稳定。
+即使样本量达到 $N=10^5$，也不足以得到稳定的估计。
+
+图\ref{fig:initial-rmse}在双对数坐标下展示了重要性采样估计量的 RMSE
+随样本量 $N$ 的变化。RMSE在该情况下几乎没有任何减小的趋势，反而不断波动，
+表明估计量的稳定性较差。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{gaussian_estimates.png}
+    \caption{重要性采样估计量的收敛情况}
+    \label{fig:initial-convergence}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{gaussian_rmse.png}
+    \caption{重要性采样估计量的 RMSE 随样本量的变化}
+    \label{fig:initial-rmse}
+  \end{subfigure}
+  \caption{初始建议分布下的重要性采样 Monte Carlo 估计量表现}
+  \label{fig:initial_proposal}
+\end{figure}
+
+\subsubsection{讨论}
+该建议分布下重要性采样较差的数值表现可以用目标密度的几何结构解释。
+虽然目标密度在 $(0,\frac12)$ 处有唯一最大值，
+但它高度集中在由 $2x_2+x_1^2-1=0$ 定义的曲线附近。
+初始高斯建议分布 $q=\mathcal{N}(m,\Sigma)$，其中 $m=(0,0.5)$，
+$\Sigma=\operatorname{diag}(1,0.25)$，无法充分捕捉这种弯曲结构。
+因此，从 $q$ 中抽取的部分样本落在 $\rhoT(x)$ 几乎为零的区域；另一方面，脊线远端的建议密度过小，偶尔抽到的样本会产生极大的重要性权重
+\[
+w(x)=\frac{\rhoT(x)}{q(x)}
+\]
+这使有限样本下的估计值和经验 RMSE 表现不稳定。后文将进一步讨论其权重的理论二阶矩。
+
+\subsection{改进建议分布}
+
+第\ref{sec:initial-experiments}节的数值结果表明，初始建议分布的主要问题
+不是众数附近的局部曲率，而是它与目标密度结构之间的整体不匹配。
+
+因此，我们需要改进建议分布以更好地匹配目标函数的结构。我们仍然使用二元正态分布作为建议分布，但我们尝试改变其参数。
+考虑以下分布族：
+\[
+q(x)=\mathcal N(x;m,\Sigma),
+\]
+其中
+\[
+m = \begin{pmatrix}
+    0 \\
+    a
+\end{pmatrix}, \qquad
+\Sigma = \begin{pmatrix}
+    b & 0 \\
+    0 & c
+\end{pmatrix}.
+\]
+$a\in[0,5]$、$b,c\in[0.01,10]$ 是程序中待调节的参数。
+
+选择这一分布族的理由如下：
+\begin{itemize}
+  \item 沿 $x_2$ 方向移动均值，可以使建议分布更好地适应
+    曲线 $2x_2+x_1^2-1=0$ 所定义脊线的垂直位置。
+  \item 缩放协方差矩阵，可以调节建议分布的离散程度，
+    使其在脊线附近更集中或更分散。
+  \item 目标分布满足 $\Cov(X_1,X_2)=0$，因此我们采用对角协方差结构。
+\end{itemize}
+
+\subsubsection{矩条件确定参数}
+我们首先尝试通过矩条件来确定建议分布的参数。我们使建议分布的一、二阶矩等于目标分布的矩，即
+\[
+\begin{cases}
+    \E_q[X_1] = 0, \\
+    \E_q[X_2] = a = 0, \\
+    \Var_q(X_1) = b = 1, \\
+    \Var_q(X_2) = c = \frac{3}{4}.
+\end{cases}
+\]
+
+在该参数组合下，重复\ref{sec:initial-experiments}节的数值实验，
+得到图\ref{fig:moment-matching-proposal}所示的结果。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{moment_matched_gaussian_estimates.png}
+    \caption{矩条件下采样估计量的收敛情况}
+    \label{fig:moment-matching-convergence}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{moment_matched_gaussian_rmse.png}
+    \caption{矩条件下估计量的 RMSE 的变化}
+    \label{fig:moment-matching-rmse}
+  \end{subfigure}
+  \caption{矩条件建议分布下的重要性采样 Monte Carlo 估计量表现}
+  \label{fig:moment-matching-proposal}
+\end{figure}
+
+\subsubsection{最小化调参}
+
+为进一步改进建议分布，我们可以通过最小化经验 RMSE 来调节参数 $a, b, c$。
+对于每组参数，我们固定样本量 $N=10^4$，运行重要性采样估计，重复 $100$ 次，计算经验 RMSE。
+使用 SciPy 的优化器对参数进行搜索，初始参数为 $(0,1,0.75)$。
+每次评价参数时都使用随机种子 $20261008$ 重新初始化生成器，正式实验使用不同的种子 $20260930$。
+当前正式实验采用的调参结果为：
+\[
+a^* \approx 0.0, \quad b^* \approx 2.46006384, \quad c^* \approx 1.40547353.
+\]
+这组参数是在有限样本、固定种子和给定边界下得到的候选结果，不代表理论 RMSE 的全局最优解。
+
+在该参数组合下，重复\ref{sec:initial-experiments}节的数值实验，
+得到图\ref{fig:refined-proposal}所示的结果。
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{refined_gaussian_estimates.png}
+    \caption{改进采样估计量的收敛情况}
+    \label{fig:refined-convergence}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{refined_gaussian_rmse.png}
+    \caption{改进条件下估计量的 RMSE 的变化}
+    \label{fig:refined-rmse}
+  \end{subfigure}
+  \caption{调参后建议分布下的重要性采样 Monte Carlo 估计量表现}
+  \label{fig:refined-proposal}
+\end{figure}
+
+\subsection{结论}
+改进建议分布明显改善了重要性采样估计量的表现。
+改进方案沿 $x_2$ 方向移动均值，增大沿目标密度脊线方向的匹配度，使建议密度 $q$ 与目标密度 $\rho$ 有更好的重叠。
+
+这种结构上的匹配改善了当前样本预算下的经验表现。
+在有限次重复实验中，改进后的估计量波动较小。
+图\ref{fig:comparison}尤其清楚地展示了这种改善：
+即使样本量中等，改进后的估计量也保持在真值附近，而初始方案的波动很大，
+改进建议分布的经验 RMSE 相较其他建议分布更低。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{comparison.png}
+  \caption{不同建议分布下 Monte Carlo 估计量比较}
+  \label{fig:comparison}
+\end{figure}
+
+表\ref{tab:error-summary}列出 $N=10^5$ 时同一批重复估计的误差统计量。
+初始高斯方案的经验 RMSE 明显高于绝对误差的 95\% 分位数，说明少数极端估计对平方误差有很大的影响。
+因此，我们同时考察经验 RMSE 和误差分位数。
+\begin{table}[htbp]
+  \centering
+  \begin{tabular}{lrrr}
+    \hline
+    方法 & 经验 RMSE & 中位绝对误差 & 95\% 分位绝对误差 \\
+    \hline
+    均匀采样 $[-4,4]^2$ & 0.030459 & 0.021671 & 0.057311 \\
+    初始高斯 & 1.258050 & 0.159956 & 0.278879 \\
+    矩匹配高斯 & 0.061507 & 0.027735 & 0.093149 \\
+    调参后高斯 & 0.015139 & 0.009119 & 0.029311 \\
+    \hline
+  \end{tabular}
+  \caption{$N=10^5$、重复 $100$ 次时的误差统计量，均以 $\pi$ 为真值}
+  \label{tab:error-summary}
+\end{table}
+
+我们也可以从热力图\ref{fig:heatmap}中看出，
+不同建议分布在所画区域内产生了不同的权重 $w(x)=\rhoT(x)/q(x)$，图中颜色表示 $\log_{10}w(x)$，三幅图使用相同的色标。
+这可以帮助我们观察局部的密度匹配情况，但有限区域内的热力图不能确定全空间权重方差是否有限。
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{weights_heatmap_comparison.png}
+  \caption{不同高斯建议分布下的对数权重热力图}
+  \label{fig:heatmap}
+\end{figure}
+
+\subsection{正态建议分布的局限性}
+虽然改进后的正态建议分布在本问题中有较低的经验 RMSE，但这并不保证其理论 RMSE 有限。
+我们考察在正态建议分布下的理论 MSE：
+\[
+\operatorname{MSE} = \Var_q(\widehat Z_N^{\mathrm{IS}}) = \frac{1}{N}\Var_q\left(\frac{\rhoT(Y_i)}{q(Y_i)}\right).
+\]
+其中
+\[
+\begin{aligned}
+\Var_q\left(\frac{\rhoT(Y_i)}{q(Y_i)}\right)
+&=\E_q\left[\left(\frac{\rhoT(Y_i)}{q(Y_i)}\right)^2\right]-Z^2 \\
+&=\int_{\R^2}\frac{\rhoT(x)^2}{q(x)}\,\mathrm{d}x-Z^2.
+\end{aligned}
+\]
+令
+\[
+y_1=x_1,\qquad y_2=2x_2+x_1^2-1,\qquad
+x_2=\frac{y_2-y_1^2+1}{2}.
+\]
+对于 $q=\mathcal N((0,a),\operatorname{diag}(b,c))$，当 $|y_2|\le1$ 时有
+\[
+\begin{aligned}
+\log\frac{\rhoT(x)^2}{q(x)}
+&=\log(2\pi\sqrt{bc})-y_1^2-y_2^2+\frac{y_1^2}{2b}
+  +\frac{(y_2-y_1^2+1-2a)^2}{8c} \\
+&=\frac{y_1^4}{8c}+O(y_1^2), \quad y_1\to\infty.
+\end{aligned}
+\]
+由于 $c>0$，故存在 $T>0$，使得当 $y_1\ge T$、$|y_2|\le1$ 时，$\rhoT(x)^2/q(x)\ge\exp(y_1^4/(16c))$。
+由面积元 $\mathrm{d}x_1\mathrm{d}x_2=\frac12\mathrm{d}y_1\mathrm{d}y_2$，得到
+\[
+\int_{\R^2}\frac{\rhoT(x)^2}{q(x)}\,\mathrm{d}x
+\ge\frac12\int_T^\infty\int_{-1}^1
+\exp\left(\frac{y_1^4}{16c}\right)\,\mathrm{d}y_2\mathrm{d}y_1=\infty.
+\]
+
+因此，本报告的三种高斯建议分布都有无限的权重二阶矩，对任意有限的 $N$，理论 MSE 和 RMSE 都为无穷。
+有限次重复实验仍可得到有限的经验 RMSE，但不能据此认定理论方差有限，也不能仅凭拟合斜率判断具有通常的 $N^{-1/2}$ RMSE 收敛率。
+另一方面，$\E_q[w]=Z=\pi<\infty$，因此估计量仍然无偏且强相合。
+
+\subsection{精确采样对照}
+
+通过目标分布的换元结构，我们还可以直接生成来自 $\rho=\rhoT/\pi$ 的样本：
+\[
+X_1\sim\mathcal N(0,1),\qquad
+X_2\mid X_1=x_1\sim\mathcal N\left(\frac{1-x_1^2}{2},\frac14\right).
+\]
+程序先生成 $X_1$，再按条件分布生成 $X_2$，并使用建议密度 $q(x)=\rhoT(x)/\pi$ 进行重要性采样估计。
+此时每个样本的权重都是
+\[
+w(x)=\frac{\rhoT(x)}{q(x)}=\pi,
+\]
+因此任意样本量下的估计值都等于 $\pi$，理论方差和 RMSE 都为零。
+
+我们采用与前述小样本实验相同的样本量和重复次数，保存每轮估计并计算统计量。
+实际结果的误差为零或机器精度量级，与理论一致。
+
+\section{总结}
+
+均匀采样的估计误差由采样方差和截断偏差共同决定，扩大积分区域在减小偏差的同时，也增加了本实验中的采样方差。
+调参后的高斯建议分布改善了有限样本下的经验表现，但权重二阶矩仍然发散。
+精确采样对照得到恒定权重，验证了采样与估计程序的实现。
 
 \end{document}
