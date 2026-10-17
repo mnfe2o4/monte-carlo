@@ -8,8 +8,8 @@
         "optimization_initial_gaussian_params": [0.0, 1.0, 0.75],
         "optimization_bounds": [
             [0.0, 5.0],
-            [0.1, 10.0],
-            [0.1, 10.0]
+            [0.01, 10.0],
+            [0.01, 10.0]
         ],
         "refined_gaussian_params": [0.0, 2.46006384, 1.40547353],
         "moment_matched_gaussian_params": [0.0, 1.0, 0.75]

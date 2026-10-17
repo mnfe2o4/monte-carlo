@@ -71,7 +71,7 @@ $$
 
 ## Raw 与 summary 的统计口径
 
-`results/raw/<method>.csv` 每行是一轮独立重复估计，包含 `Sample Size,Replicate,Estimate`。程序从文件名提取 method，按方法和 N 分组，输出 [results/summary/summary.csv](results/summary/summary.csv)。当前五种方法共 3,500 条 raw 记录，汇总为 35 行。
+`results/raw/<method>.csv` 每行是一轮独立重复估计，包含 `Sample Size,Replicate,Estimate`。程序从文件名提取 method，按方法和 N 分组，输出 [results/summary/summary.csv](results/summary/summary.csv)。当前五种h核心方法共 3,500 条 raw 记录，汇总为 35 行。
 
 | 字段 | 含义 |
 |---|---|
@@ -98,8 +98,6 @@ $$
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
-
-依赖安装未锁定版本；尚未验证干净环境的完整复现。
 
 **从已有 raw 重建 summary 和比较图**，不重新采样：
 
@@ -147,7 +145,7 @@ Gaussian 调参是独立入口，汇总已有结果不需要重跑它：
 | `results/summary/` | 各方法及样本量的统一统计汇总 |
 | `figures/` | 单方法图与四方法比较图 |
 | `notebooks/` | 基础模拟与方差缩减的学习实验 |
-| `reports/` | 新报告的 LaTeX 草稿，目前尚无分析正文 |
+| `reports/` | LaTeX 报告源码及编译后的 PDF |
 | `configs/` | 存储完整参数、seed、包版本等相关配置信息 |
 
 raw 是统计来源，summary 和 comparison 都能从 raw 重建。完整参数、seed、包版本等相关配置信息存储在 `configs/` 中。
