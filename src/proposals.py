@@ -4,6 +4,7 @@ Provide normalized proposal densities and their matching sample generators.
 
 import numpy as np
 from collections.abc import Callable
+from scipy.stats import multivariate_normal
 
 class Proposal:
     """
@@ -173,9 +174,11 @@ class GaussianProposal(Proposal):
         Args:
             mean: Mean vector with shape (dim,).
             cov: Symmetric positive-definite covariance with shape (dim, dim).
+            dist: Multivariate normal distribution object.
         """
         self.mean = mean
         self.cov = cov
+        self.dist = multivariate_normal(mean=mean, cov=cov)
         super().__init__(
             pdf=self.gaussian_pdf,
             log_pdf=self.gaussian_log_pdf,
@@ -193,7 +196,7 @@ class GaussianProposal(Proposal):
             density: Exponential of the directly evaluated log-density.
                 Very small values may underflow; use log_pdf for log-weights.
         """
-        return float(np.exp(self.gaussian_log_pdf(x)))
+        return float(self.dist.pdf(x))
 
     def gaussian_log_pdf(self, x: np.ndarray) -> float:
         """
@@ -206,12 +209,7 @@ class GaussianProposal(Proposal):
             log_density: Normalized log-density computed without taking the
                 logarithm of a potentially underflowed PDF.
         """
-        size = len(x)
-        chol = np.linalg.cholesky(self.cov)
-        diff = x - self.mean
-        standardized = np.linalg.solve(chol, diff)
-        log_norm_const = -0.5 * size * np.log(2 * np.pi) - np.sum(np.log(np.diag(chol)))
-        return float(log_norm_const - 0.5 * standardized @ standardized)
+        return float(self.dist.logpdf(x))
 
     def gaussian_sample_generator(self, n: int, rng: np.random.Generator | None = None) -> np.ndarray:
         """

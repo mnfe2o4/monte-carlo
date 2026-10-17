@@ -19,8 +19,8 @@ if __name__ == "__main__":
     figure_path=PROJECT_ROOT / "figures"
     # Compare against the full-space truth, including the box truncation error.
     run_experiment(
-        estimator, target_function, sample_sizes=[100, 300, 1000, 3000, 10000, 30000, 100000], num_repetitions=100,
-        true_value=Z_TRUE, use_log=False, rng=rng,
+        estimator, log_target_function, sample_sizes=[100, 300, 1000, 3000, 10000, 30000, 100000], num_repetitions=100,
+        true_value=Z_TRUE, use_log=True, rng=rng,
         csv_path=csv_path, csv_name="gaussian",
         figure_path=figure_path, figure_names=("gaussian_estimates", "gaussian_rmse"), figure_titles=("Gaussian Estimates vs N", "Gaussian RMSE vs N"),
         quiet=False, fit_slope=True, show_true_value=True

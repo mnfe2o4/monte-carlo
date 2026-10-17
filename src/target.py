@@ -36,6 +36,8 @@ def log_target_function(x: np.ndarray) -> float:
 
 # Exact full-space integral obtained by the nonlinear coordinate transform.
 Z_TRUE = np.pi
+Z_TRUNCATED_4 = 3.1317084117972485
+Z_TRUNCATED_6 = 3.1404622456392373
 
 def compute_truncated_integral(bounds):
     """
@@ -54,6 +56,8 @@ def compute_truncated_integral(bounds):
     )
     return result
 
-# Box references differ from Z_TRUE by the omitted mass outside each box.
-Z_TRUNCATED_4 = compute_truncated_integral([[-4, 4], [-4, 4]])
-Z_TRUNCATED_6 = compute_truncated_integral([[-6, 6], [-6, 6]])
+if __name__ == "__main__":
+    # Box references differ from Z_TRUE by the omitted mass outside each box.
+    Z_TRUNCATED_4 = compute_truncated_integral([[-4, 4], [-4, 4]])
+    Z_TRUNCATED_6 = compute_truncated_integral([[-6, 6], [-6, 6]])
+    print(f"Z_TRUE = {Z_TRUE}", f"Z_TRUNCATED_4 = {Z_TRUNCATED_4}", f"Z_TRUNCATED_6 = {Z_TRUNCATED_6}")

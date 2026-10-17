@@ -1,4 +1,4 @@
-from scipy.optimize import minimize
+from scipy.optimize import minimize, OptimizeResult
 import numpy as np
 from src.estimators import MCEstimator
 from src.proposals import GaussianProposal
@@ -43,7 +43,7 @@ def target_rmse_objective(params: np.ndarray, num_samples: int, num_repetitions:
     rng = np.random.default_rng(seed) if seed is not None else np.random.default_rng()
     return calculate_gaussian_rmse(mean, cov, num_samples, num_repetitions, rng)
 
-def find_refined_gaussian_params(initial_params: np.ndarray, num_samples: int, num_repetitions: int, seed: int | None = None) -> np.ndarray:
+def find_refined_gaussian_params(initial_params: np.ndarray, num_samples: int, num_repetitions: int, seed: int | None = None) -> OptimizeResult:
     """
     Optimize Gaussian proposal parameters to minimize RMSE.
 
@@ -54,7 +54,7 @@ def find_refined_gaussian_params(initial_params: np.ndarray, num_samples: int, n
         seed (int | None): Seed for the random number generator for reproducibility.
 
     Returns:
-        np.ndarray: Optimized parameters that minimize RMSE.
+        OptimizeResult: The result of the optimization.
     """
     result = minimize(
         target_rmse_objective,
