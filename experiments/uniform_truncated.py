@@ -27,3 +27,10 @@ if __name__ == "__main__":
         figure_path=figure_path, figure_names=("uniform_truncated_4_estimates", "uniform_truncated_4_rmse"), figure_titles=("Uniform Truncated on $[-4, 4]^2$ Estimates vs N", "Uniform Truncated on $[-4, 4]^2$ RMSE vs N"),
         quiet=False, fit_slope=True, show_true_value=True
     )
+    run_experiment(
+        estimator6, target_function, sample_sizes=[100, 300, 1000, 3000, 10000, 30000, 100000], num_repetitions=100,
+        true_value=Z_TRUE, use_log=False, rng=rng,
+        csv_path=csv_path, csv_name="uniform_truncated_6",
+        figure_path=figure_path, figure_names=("uniform_truncated_6_estimates", "uniform_truncated_6_rmse"), figure_titles=("Uniform Truncated on $[-6, 6]^2$ Estimates vs N", "Uniform Truncated on $[-6, 6]^2$ RMSE vs N"),
+        quiet=False, fit_slope=True, show_true_value=True
+    )
